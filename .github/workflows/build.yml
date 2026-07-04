@@ -23,9 +23,8 @@ jobs:
           targets: aarch64-apple-darwin,x86_64-apple-darwin
       - name: Download MuPDF
         run: |
-          curl -L -o mupdf.tar.gz https://github.com/ArtifexSoftware/mupdf/archive/refs/tags/1.25.2.tar.gz
-          tar xzf mupdf.tar.gz
-          cd mupdf-1.25.2
+          git clone --recursive --depth 1 --branch 1.25.2 https://github.com/ArtifexSoftware/mupdf.git mupdf-src
+          cd mupdf-src
           make HAVE_GLUT=no build=release libs
           mkdir -p ../src-tauri/libs/macos
           cp build/release/libmupdf.a ../src-tauri/libs/macos/
@@ -55,17 +54,16 @@ jobs:
       - name: Download MuPDF
         shell: pwsh
         run: |
-          Invoke-WebRequest -Uri "https://github.com/ArtifexSoftware/mupdf/archive/refs/tags/1.25.2.tar.gz" -OutFile "mupdf.tar.gz"
-          tar -xzf mupdf.tar.gz
-          cd mupdf-1.25.2
-          New-Item -ItemType Directory -Force -Path ..\src-tauri\libs\windows
-          New-Item -ItemType Directory -Force -Path ..\src-tauri\libs\include
-          Copy-Item -Recurse include\mupdf\ ..\src-tauri\libs\include\mupdf\
+          git clone --recursive --depth 1 --branch 1.25.2 https://github.com/ArtifexSoftware/mupdf.git mupdf-src
+          New-Item -ItemType Directory -Force -Path src-tauri\libs\windows
+          New-Item -ItemType Directory -Force -Path src-tauri\libs\include
+          Copy-Item -Recurse mupdf-src\include\mupdf\ src-tauri\libs\include\mupdf\
       - name: Build MuPDF (Windows)
         shell: cmd
         run: |
-          call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
-          cd mupdf-1.25.2
+          for /f "usebackq delims=" %%i in (`"%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property installationPath`) do set "VSPATH=%%i"
+          call "%VSPATH%\VC\Auxiliary\Build\vcvars64.bat"
+          cd mupdf-src
           nmake /f scripts/mupdfwin.mak HAVE_GLUT=no build=release
           copy build\release\libmupdf.lib ..\src-tauri\libs\windows\
           copy build\release\libmupdf-third.lib ..\src-tauri\libs\windows\
