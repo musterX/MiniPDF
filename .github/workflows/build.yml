@@ -21,7 +21,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: aarch64-apple-darwin,x86_64-apple-darwin
-      - name: Download MuPDF
+      - name: Download and Build MuPDF
         run: |
           git clone --recursive --depth 1 --branch 1.25.2 https://github.com/ArtifexSoftware/mupdf.git mupdf-src
           cd mupdf-src
@@ -29,7 +29,6 @@ jobs:
           mkdir -p ../src-tauri/libs/macos
           cp build/release/libmupdf.a ../src-tauri/libs/macos/
           cp build/release/libmupdf-third.a ../src-tauri/libs/macos/
-          cp include/mupdf/ -r ../src-tauri/libs/include/
       - run: pnpm install
       - run: pnpm tauri build --target aarch64-apple-darwin
       - uses: actions/upload-artifact@v4
@@ -56,17 +55,22 @@ jobs:
         run: |
           git clone --recursive --depth 1 --branch 1.25.2 https://github.com/ArtifexSoftware/mupdf.git mupdf-src
           New-Item -ItemType Directory -Force -Path src-tauri\libs\windows
-          New-Item -ItemType Directory -Force -Path src-tauri\libs\include
-          Copy-Item -Recurse mupdf-src\include\mupdf\ src-tauri\libs\include\mupdf\
       - name: Build MuPDF (Windows)
         shell: cmd
         run: |
           for /f "usebackq delims=" %%i in (`"%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property installationPath`) do set "VSPATH=%%i"
           call "%VSPATH%\VC\Auxiliary\Build\vcvars64.bat"
           cd mupdf-src
-          nmake /f scripts/mupdfwin.mak HAVE_GLUT=no build=release
-          copy build\release\libmupdf.lib ..\src-tauri\libs\windows\
-          copy build\release\libmupdf-third.lib ..\src-tauri\libs\windows\
+          msbuild platform\win32\libmupdf.vcxproj /p:Configuration=Release /p:Platform=x64 /m /nologo /v:minimal
+          cd platform\win32\x64\Release
+          copy libmupdf.lib ..\..\..\..\src-tauri\libs\windows\mupdf.lib
+          setlocal enabledelayedexpansion
+          set THIRD_LIBS=
+          for %%f in (libthirdparty libresources libharfbuzz libpkcs7 libextract libmuthreads) do (
+              if exist %%f.lib set THIRD_LIBS=!THIRD_LIBS! %%f.lib
+          )
+          lib /OUT:libmupdf-third.lib !THIRD_LIBS!
+          copy libmupdf-third.lib ..\..\..\..\src-tauri\libs\windows\mupdf-third.lib
       - run: pnpm install
       - run: pnpm tauri build
       - uses: actions/upload-artifact@v4

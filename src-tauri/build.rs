@@ -1,10 +1,25 @@
 fn main() {
     tauri_build::build();
 
-    let mupdf_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("mupdf")
-        .join("build")
-        .join("release-tofu");
+    let manifest_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+
+    let mupdf_dir = if cfg!(target_os = "macos") {
+        let ci = manifest_dir.join("libs").join("macos");
+        if ci.join("libmupdf.a").exists() {
+            ci
+        } else {
+            manifest_dir.join("mupdf").join("build").join("release-tofu")
+        }
+    } else if cfg!(target_os = "windows") {
+        let ci = manifest_dir.join("libs").join("windows");
+        if ci.join("mupdf.lib").exists() {
+            ci
+        } else {
+            manifest_dir.join("mupdf").join("build").join("release-tofu")
+        }
+    } else {
+        manifest_dir.join("mupdf").join("build").join("release-tofu")
+    };
 
     println!("cargo:rustc-link-search=native={}", mupdf_dir.display());
     println!("cargo:rustc-link-lib=static=mupdf");
