@@ -1,0 +1,79 @@
+name: Build
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  build-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+      - name: Download MuPDF
+        run: |
+          curl -L -o mupdf.tar.gz https://mupdf.com/releases/mupdf-1.25.2-source.tar.gz
+          tar xzf mupdf.tar.gz
+          cd mupdf-1.25.2-source
+          make HAVE_GLUT=no build=release libs
+          mkdir -p ../src-tauri/libs/macos
+          cp build/release/libmupdf.a ../src-tauri/libs/macos/
+          cp build/release/libmupdf-third.a ../src-tauri/libs/macos/
+          cp include/mupdf/ -r ../src-tauri/libs/include/
+      - run: pnpm install
+      - run: pnpm tauri build --target aarch64-apple-darwin
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MiniPDF-macOS-aarch64
+          path: src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/*.dmg
+
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+      - name: Download MuPDF
+        shell: pwsh
+        run: |
+          Invoke-WebRequest -Uri "https://mupdf.com/releases/mupdf-1.25.2-source.tar.gz" -OutFile "mupdf.tar.gz"
+          tar -xzf mupdf.tar.gz
+          cd mupdf-1.25.2-source
+          # Build with MSVC via nmake or use prebuilt
+          # For CI, download prebuilt Windows binaries if available
+          New-Item -ItemType Directory -Force -Path ..\src-tauri\libs\windows
+          New-Item -ItemType Directory -Force -Path ..\src-tauri\libs\include
+          Copy-Item -Recurse include\mupdf\ ..\src-tauri\libs\include\mupdf\
+      - name: Build MuPDF (Windows)
+        shell: cmd
+        run: |
+          call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
+          cd mupdf-1.25.2-source
+          nmake /f scripts/mupdfwin.mak HAVE_GLUT=no build=release
+          copy build\release\libmupdf.lib ..\src-tauri\libs\windows\
+          copy build\release\libmupdf-third.lib ..\src-tauri\libs\windows\
+      - run: pnpm install
+      - run: pnpm tauri build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MiniPDF-Windows-x64
+          path: src-tauri/target/release/bundle/nsis/*.exe
