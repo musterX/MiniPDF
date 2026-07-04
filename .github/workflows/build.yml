@@ -23,9 +23,9 @@ jobs:
           targets: aarch64-apple-darwin,x86_64-apple-darwin
       - name: Download MuPDF
         run: |
-          curl -L -o mupdf.tar.gz https://mupdf.com/releases/mupdf-1.25.2-source.tar.gz
+          curl -L -o mupdf.tar.gz https://github.com/ArtifexSoftware/mupdf/archive/refs/tags/1.25.2.tar.gz
           tar xzf mupdf.tar.gz
-          cd mupdf-1.25.2-source
+          cd mupdf-1.25.2
           make HAVE_GLUT=no build=release libs
           mkdir -p ../src-tauri/libs/macos
           cp build/release/libmupdf.a ../src-tauri/libs/macos/
@@ -55,11 +55,9 @@ jobs:
       - name: Download MuPDF
         shell: pwsh
         run: |
-          Invoke-WebRequest -Uri "https://mupdf.com/releases/mupdf-1.25.2-source.tar.gz" -OutFile "mupdf.tar.gz"
+          Invoke-WebRequest -Uri "https://github.com/ArtifexSoftware/mupdf/archive/refs/tags/1.25.2.tar.gz" -OutFile "mupdf.tar.gz"
           tar -xzf mupdf.tar.gz
-          cd mupdf-1.25.2-source
-          # Build with MSVC via nmake or use prebuilt
-          # For CI, download prebuilt Windows binaries if available
+          cd mupdf-1.25.2
           New-Item -ItemType Directory -Force -Path ..\src-tauri\libs\windows
           New-Item -ItemType Directory -Force -Path ..\src-tauri\libs\include
           Copy-Item -Recurse include\mupdf\ ..\src-tauri\libs\include\mupdf\
@@ -67,7 +65,7 @@ jobs:
         shell: cmd
         run: |
           call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
-          cd mupdf-1.25.2-source
+          cd mupdf-1.25.2
           nmake /f scripts/mupdfwin.mak HAVE_GLUT=no build=release
           copy build\release\libmupdf.lib ..\src-tauri\libs\windows\
           copy build\release\libmupdf-third.lib ..\src-tauri\libs\windows\
