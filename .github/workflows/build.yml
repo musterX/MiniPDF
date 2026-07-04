@@ -6,6 +6,9 @@ on:
       - 'v*'
   workflow_dispatch:
 
+env:
+  MUPDF_VERSION: "1.25.2"
+
 jobs:
   build-macos:
     runs-on: macos-latest
@@ -21,16 +24,19 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: aarch64-apple-darwin,x86_64-apple-darwin
-      - name: Download and Build MuPDF
+
+      - name: Build MuPDF from source
         run: |
-          git clone --recursive --depth 1 --branch 1.25.2 https://github.com/ArtifexSoftware/mupdf.git mupdf-src
+          git clone --recursive --depth 1 --branch ${{ env.MUPDF_VERSION }} https://github.com/ArtifexSoftware/mupdf.git mupdf-src
           cd mupdf-src
-          make HAVE_GLUT=no build=release libs
+          make HAVE_GLUT=no USE_SYSTEM_LIBS=yes build=release libs
           mkdir -p ../src-tauri/libs/macos
           cp build/release/libmupdf.a ../src-tauri/libs/macos/
           cp build/release/libmupdf-third.a ../src-tauri/libs/macos/
+
       - run: pnpm install
       - run: pnpm tauri build --target aarch64-apple-darwin
+
       - uses: actions/upload-artifact@v4
         with:
           name: MiniPDF-macOS-aarch64
@@ -50,29 +56,29 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: x86_64-pc-windows-msvc
-      - name: Download MuPDF
+
+      - name: Download MuPDF prebuilt (Windows)
         shell: pwsh
         run: |
-          git clone --recursive --depth 1 --branch 1.25.2 https://github.com/ArtifexSoftware/mupdf.git mupdf-src
+          $url = "https://mupdf.com/releases/archive/mupdf-${{ env.MUPDF_VERSION }}-source.tar.lz"
+          Write-Host "MuPDF prebuilt binaries not available, will build from source"
+          # Download and extract source
+          git clone --recursive --depth 1 --branch ${{ env.MUPDF_VERSION }} https://github.com/ArtifexSoftware/mupdf.git mupdf-src
           New-Item -ItemType Directory -Force -Path src-tauri\libs\windows
-      - name: Build MuPDF (Windows)
+
+      - name: Build MuPDF (Windows nmake)
         shell: cmd
         run: |
           for /f "usebackq delims=" %%i in (`"%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property installationPath`) do set "VSPATH=%%i"
           call "%VSPATH%\VC\Auxiliary\Build\vcvars64.bat"
           cd mupdf-src
-          msbuild platform\win32\libmupdf.vcxproj /p:Configuration=Release /p:Platform=x64 /m /nologo /v:minimal
-          cd platform\win32\x64\Release
-          copy libmupdf.lib ..\..\..\..\src-tauri\libs\windows\mupdf.lib
-          setlocal enabledelayedexpansion
-          set THIRD_LIBS=
-          for %%f in (libthirdparty libresources libharfbuzz libpkcs7 libextract libmuthreads) do (
-              if exist %%f.lib set THIRD_LIBS=!THIRD_LIBS! %%f.lib
-          )
-          lib /OUT:libmupdf-third.lib !THIRD_LIBS!
-          copy libmupdf-third.lib ..\..\..\..\src-tauri\libs\windows\mupdf-third.lib
+          nmake /f scripts/mupdfwin.nmake build=release HAVE_GLUT=no
+          copy build\release\libmupdf.lib ..\src-tauri\libs\windows\mupdf.lib
+          copy build\release\libthirdparty.lib ..\src-tauri\libs\windows\mupdf-third.lib
+
       - run: pnpm install
       - run: pnpm tauri build
+
       - uses: actions/upload-artifact@v4
         with:
           name: MiniPDF-Windows-x64
