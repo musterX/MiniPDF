@@ -25,11 +25,14 @@ jobs:
         with:
           targets: aarch64-apple-darwin,x86_64-apple-darwin
 
+      - name: Install system deps for MuPDF
+        run: brew install openjpeg freetype harfbuzz jbig2dec little-cms2 libjpeg-turbo zlib gumbo-parser
+
       - name: Build MuPDF from source
         run: |
           git clone --recursive --depth 1 --branch ${{ env.MUPDF_VERSION }} https://github.com/ArtifexSoftware/mupdf.git mupdf-src
           cd mupdf-src
-          make HAVE_GLUT=no USE_SYSTEM_LIBS=yes build=release libs
+          make HAVE_GLUT=no USE_SYSTEM_LIBS=yes SYS_OPENJPEG_CFLAGS="-I$(brew --prefix openjpeg)/include/openjpeg-2.5" SYS_OPENJPEG_LIBS="-L$(brew --prefix openjpeg)/lib -lopenjp2" build=release libs
           mkdir -p ../src-tauri/libs/macos
           cp build/release/libmupdf.a ../src-tauri/libs/macos/
           cp build/release/libmupdf-third.a ../src-tauri/libs/macos/
@@ -57,24 +60,22 @@ jobs:
         with:
           targets: x86_64-pc-windows-msvc
 
-      - name: Download MuPDF prebuilt (Windows)
-        shell: pwsh
+      - name: Clone MuPDF source
         run: |
-          $url = "https://mupdf.com/releases/archive/mupdf-${{ env.MUPDF_VERSION }}-source.tar.lz"
-          Write-Host "MuPDF prebuilt binaries not available, will build from source"
-          # Download and extract source
           git clone --recursive --depth 1 --branch ${{ env.MUPDF_VERSION }} https://github.com/ArtifexSoftware/mupdf.git mupdf-src
           New-Item -ItemType Directory -Force -Path src-tauri\libs\windows
+        shell: pwsh
 
-      - name: Build MuPDF (Windows nmake)
+      - name: Build MuPDF (MSBuild)
         shell: cmd
         run: |
           for /f "usebackq delims=" %%i in (`"%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property installationPath`) do set "VSPATH=%%i"
           call "%VSPATH%\VC\Auxiliary\Build\vcvars64.bat"
           cd mupdf-src
-          nmake /f scripts/mupdfwin.nmake build=release HAVE_GLUT=no
-          copy build\release\libmupdf.lib ..\src-tauri\libs\windows\mupdf.lib
-          copy build\release\libthirdparty.lib ..\src-tauri\libs\windows\mupdf-third.lib
+          msbuild platform\win32\libmupdf.vcxproj /p:Configuration=Release /p:Platform=x64
+          msbuild platform\win32\libthirdparty.vcxproj /p:Configuration=Release /p:Platform=x64
+          copy platform\win32\x64\Release\libmupdf.lib ..\src-tauri\libs\windows\mupdf.lib
+          copy platform\win32\x64\Release\libthirdparty.lib ..\src-tauri\libs\windows\mupdf-third.lib
 
       - run: pnpm install
       - run: pnpm tauri build
